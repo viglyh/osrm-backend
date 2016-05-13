@@ -139,6 +139,42 @@ void GraphCompressor::Compress(const std::unordered_set<NodeID> &barrier_nodes,
             graph.SetTarget(forward_e1, node_w);
             graph.SetTarget(reverse_e1, node_u);
 
+            /*
+             * Remember Lane Data for compressed parts. This handles scenarios where lane-data is
+             * only kept up until a traffic light.
+             *
+             *                |    |
+             * ----------------    |
+             *         -^ |        |
+             * -----------         |
+             *         -v |        |
+             * ---------------     |
+             *                |    |
+             *
+             *  u ------- v ---- w
+             *
+             * Since the edge is compressable, we can transfer:
+             * "left|right" (uv) and "" (uw) into a string with "left|right" (uw) for the compressed
+             * edge.
+             * Doing so, we might mess up the point from where the lanes are shown. It should be
+             * reasonable, since the announcements have to come early anyhow. So there is a
+             * potential danger in here, but it saves us from adding a lot of additional edges for
+             * turn-lanes. Without this,we would have to treat any turn-lane beginning/ending just
+             * like a barrier.
+             */
+            const auto selectLaneID = [](const LaneID front, const LaneID back) {
+                // A lane has tags: u - (front) - v - (back) - w
+                // During contraction, we keep only one of the tags. Usually the one closer to the
+                // intersection is preferred. If its empty, however, we keep the non-empty one
+                if (back == INVALID_LANEID)
+                    return front;
+                return back;
+            };
+            graph.GetEdgeData(forward_e1).lane_id =
+                selectLaneID(graph.GetEdgeData(forward_e1).lane_id, fwd_edge_data2.lane_id);
+            graph.GetEdgeData(reverse_e1).lane_id =
+                selectLaneID(graph.GetEdgeData(reverse_e1).lane_id, rev_edge_data2.lane_id);
+
             // remove e2's (if bidir, otherwise only one)
             graph.DeleteEdge(node_v, forward_e2);
             graph.DeleteEdge(node_v, reverse_e2);

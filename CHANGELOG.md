@@ -1,3 +1,8 @@
+# 5.3.0
+    - API
+     - Introduces new `TurnType` in the form of `use lane`. The type indicates that you have to stick to a lane without turning
+     - Introduces lanes to the route response, indicating which lanes are to be used on a turn
+
 # 5.2.0 RC2
    Changes from 5.2.0 RC1
 

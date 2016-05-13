@@ -69,6 +69,42 @@ inline double angularDeviation(const double angle, const double from)
     return std::min(360 - deviation, deviation);
 }
 
+inline bool hasLeftModifier(const extractor::guidance::TurnInstruction instruction)
+{
+    return instruction.direction_modifier == extractor::guidance::DirectionModifier::SharpLeft ||
+           instruction.direction_modifier == extractor::guidance::DirectionModifier::Left ||
+           instruction.direction_modifier == extractor::guidance::DirectionModifier::SlightLeft;
+}
+
+inline bool hasRightModifier(const extractor::guidance::TurnInstruction instruction)
+{
+    return instruction.direction_modifier == extractor::guidance::DirectionModifier::SharpRight ||
+           instruction.direction_modifier == extractor::guidance::DirectionModifier::Right ||
+           instruction.direction_modifier == extractor::guidance::DirectionModifier::SlightRight;
+}
+
+inline bool isLeftTurn(const extractor::guidance::TurnInstruction instruction) 
+{
+    switch(instruction.type)
+    {
+        case extractor::guidance::TurnType::Merge:
+            return hasRightModifier(instruction);
+        default:
+            return hasLeftModifier(instruction);
+    }
+}
+
+inline bool isRightTurn(const extractor::guidance::TurnInstruction instruction) 
+{
+    switch(instruction.type)
+    {
+        case extractor::guidance::TurnType::Merge:
+            return hasLeftModifier(instruction);
+        default:
+            return hasRightModifier(instruction);
+    }
+}
+
 } // namespace guidance
 } // namespace engine
 } // namespace osrm

@@ -40,7 +40,7 @@ NameTable::NameTable(const std::string &filename)
     }
     if (!name_stream)
         throw exception("Failed to read " + std::to_string(number_of_chars) +
-                        " characters from file.");
+                        " characters from " + filename);
 }
 
 std::string NameTable::GetNameForID(const unsigned name_id) const
