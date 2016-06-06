@@ -1,9 +1,11 @@
-#include "extractor/guidance/turn_instruction.hpp"
 #include "engine/guidance/post_processing.hpp"
+#include "extractor/guidance/turn_instruction.hpp"
 
 #include "engine/guidance/assemble_steps.hpp"
 #include "engine/guidance/toolkit.hpp"
 
+#include "util/for_each_pair.hpp"
+#include "util/group_by.hpp"
 #include "util/guidance/toolkit.hpp"
 
 #include <boost/assert.hpp>
@@ -13,6 +15,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <utility>
 
@@ -40,9 +43,9 @@ inline bool choiceless(const RouteStep &step, const RouteStep &previous)
     BOOST_ASSERT(!step.intersections.empty());
     std::cout << "Checking for choice" << std::endl;
     const auto is_without_choice = previous.distance < 4 * MAX_COLLAPSE_DISTANCE &&
-           1 >= std::count(step.intersections.front().entry.begin(),
-                           step.intersections.front().entry.end(),
-                           true);
+                                   1 >= std::count(step.intersections.front().entry.begin(),
+                                                   step.intersections.front().entry.end(),
+                                                   true);
     std::cout << "Done: " << is_without_choice << std::endl;
     return is_without_choice;
 };
@@ -348,7 +351,7 @@ void closeOffRoundabout(const bool on_roundabout,
                         ::osrm::util::guidance::getTurnDirection(angle);
                 }
 
-                propagation_step.name = destination_name;;
+                propagation_step.name = destination_name;
                 propagation_step.name_id = destinatino_name_id;
                 invalidateStep(steps[propagation_index + 1]);
                 break;
@@ -674,8 +677,8 @@ std::vector<RouteStep> postProcess(std::vector<RouteStep> steps)
             // Remember the last non silent instruction
             last_valid_instruction = step_index;
         }
-        else if( has_entered_roundabout )
-                steps[step_index + 1].maneuver.exit = step.maneuver.exit;
+        else if (has_entered_roundabout)
+            steps[step_index + 1].maneuver.exit = step.maneuver.exit;
     }
 
     // unterminated roundabout
@@ -728,6 +731,13 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
         return index;
     };
 
+    // TODO needs to check whether lane data is required!
+    const auto isCollapsableInstruction = [](const TurnInstruction instruction) {
+        return instruction.type == TurnType::NewName || instruction.type == TurnType::UseLane ||
+               (instruction.type == TurnType::Turn &&
+                instruction.direction_modifier == DirectionModifier::Straight);
+    };
+
     // a series of turns is only possible to collapse if its only name changes and suppressed turns.
     const auto canCollapseAll = [&steps](std::size_t index, const std::size_t end_index) {
         BOOST_ASSERT(end_index <= steps.size());
@@ -744,7 +754,7 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
     for (std::size_t step_index = 1; step_index + 1 < steps.size(); ++step_index)
     {
         const auto &current_step = steps[step_index];
-        if( current_step.maneuver.instruction.type == TurnType::NoTurn )
+        if (current_step.maneuver.instruction.type == TurnType::NoTurn)
             continue;
         const auto one_back_index = getPreviousIndex(step_index);
         BOOST_ASSERT(one_back_index < steps.size());
@@ -1130,6 +1140,125 @@ std::vector<RouteStep> assignRelativeLocations(std::vector<RouteStep> steps,
     BOOST_ASSERT(steps.back().intersections.front().bearings.size() == 1);
     BOOST_ASSERT(steps.back().intersections.front().entry.size() == 1);
     BOOST_ASSERT(steps.back().maneuver.waypoint_type == WaypointType::Arrive);
+    return steps;
+}
+
+std::vector<RouteStep> anticipateLaneChange(std::vector<RouteStep> steps)
+{
+    const constexpr auto MIN_DURATION_NEEDED_FOR_LANE_CHANGE = 15.;
+
+    // Postprocessing does not strictly guarantee for only turns
+    const auto is_turn = [](const RouteStep &step) {
+        return step.maneuver.instruction.type != TurnType::NewName &&
+               step.maneuver.instruction.type != TurnType::Notification;
+    };
+
+    const auto is_quick = [](const RouteStep &step) {
+        return step.duration < MIN_DURATION_NEEDED_FOR_LANE_CHANGE;
+    };
+
+    const auto is_quick_turn = [&](const RouteStep &step) {
+        return is_turn(step) && is_quick(step);
+    };
+
+    // Determine range of subsequent quick turns, candidates for possible lane anticipation
+    using StepIter = decltype(steps)::iterator;
+    using StepIterRange = std::pair<StepIter, StepIter>;
+
+    std::vector<StepIterRange> subsequent_quick_turns;
+
+    const auto keep_turn_range = [&](StepIterRange range) {
+        if (std::distance(range.first, range.second) > 1)
+            subsequent_quick_turns.push_back(std::move(range));
+    };
+
+    util::group_by(begin(steps), end(steps), is_quick_turn, keep_turn_range);
+
+    std::cout << "Number of quick-turn ranges: " << subsequent_quick_turns.size() << std::endl;
+
+    // Walk backwards over all turns, constraining possible turn lanes.
+    // Later turn lanes constrain earlier ones: we have to anticipate lane changes.
+    const auto constrain_lanes = [](const StepIterRange &turns) {
+        const std::reverse_iterator<StepIter> rev_first{turns.second};
+        const std::reverse_iterator<StepIter> rev_last{turns.first};
+
+        // We're walking backwards over all adjacent turns:
+        // the current turn lanes constrain the lanes we have to take in the previous turn.
+        util::for_each_pair(rev_first, rev_last, [](RouteStep &current, RouteStep &previous) {
+            const auto current_inst = current.maneuver.instruction;
+            const auto current_lanes = current_inst.lane_tupel;
+
+            // Constrain the previous turn's lanes
+            auto &previous_inst = previous.maneuver.instruction;
+            auto &previous_lanes = previous_inst.lane_tupel;
+
+            // Lane mapping (N:M) from previous lanes (N) to current lanes (M), with:
+            //  N > M, N > 1   fan-in situation, constrain N lanes to min(N,M) shared lanes
+            //  otherwise      nothing to constrain
+            const bool lanes_to_constrain = previous_lanes.lanes_in_turn > 1;
+            const bool lanes_fan_in = previous_lanes.lanes_in_turn > current_lanes.lanes_in_turn;
+
+            if (!lanes_to_constrain || !lanes_fan_in)
+                return;
+
+            // In case there is no lane information we work with one artificial lane
+            const auto current_adjusted_lanes = std::max(current_lanes.lanes_in_turn, LaneID{1});
+
+            const auto num_shared_lanes = std::min(current_adjusted_lanes, //
+                                                   previous_lanes.lanes_in_turn);
+
+            // If current is right (left) turn, constrain previous lanes to rightmost (leftmost).
+            const auto is_right_turn = [](const TurnInstruction &turn) {
+                switch (turn.direction_modifier)
+                {
+                case DirectionModifier::SharpRight:
+                case DirectionModifier::Right:
+                case DirectionModifier::SlightRight:
+                    return true;
+                default:
+                    return false;
+                }
+            };
+
+            const auto is_left_turn = [](const TurnInstruction &turn) {
+                switch (turn.direction_modifier)
+                {
+                case DirectionModifier::SharpLeft:
+                case DirectionModifier::Left:
+                case DirectionModifier::SlightLeft:
+                    return true;
+                default:
+                    return false;
+                }
+            };
+
+            // Merge flips the direction as in "merge to the left" is in reality a turn right
+            const auto current_is_merge = current_inst.type == TurnType::Merge;
+
+            const auto current_is_right_turn = is_right_turn(current_inst);
+            const auto current_is_left_turn = is_left_turn(current_inst);
+
+            if (current_is_right_turn || (current_is_merge && current_is_left_turn))
+            {
+                // Current turn is right turn, already keep right during the previous turn.
+                // This implies constraining the leftmost lanes in the previous turn step.
+                previous_lanes = {num_shared_lanes, previous_lanes.first_lane_from_the_right};
+            }
+            else if (current_is_left_turn || (current_is_merge && current_is_right_turn))
+            {
+                // Current turn is left turn, already keep left during previous turn.
+                // This implies constraining the rightmost lanes in the previous turn step.
+                const LaneID shared_lane_delta = previous_lanes.lanes_in_turn - num_shared_lanes;
+                const LaneID constraint_first_lane_from_the_right =
+                    previous_lanes.first_lane_from_the_right + shared_lane_delta;
+
+                previous_lanes = {num_shared_lanes, constraint_first_lane_from_the_right};
+            }
+        });
+    };
+
+    std::for_each(begin(subsequent_quick_turns), end(subsequent_quick_turns), constrain_lanes);
+
     return steps;
 }
 
