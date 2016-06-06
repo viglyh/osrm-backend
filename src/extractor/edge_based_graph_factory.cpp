@@ -360,7 +360,6 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
             const NodeID node_v = m_node_based_graph->GetTarget(edge_from_u);
             ++node_based_edge_counter;
-            std::cout << "Looking at: " << node_u << " and " << edge_from_u << std::endl;
             auto intersection = turn_analysis.getIntersection(node_u, edge_from_u);
             intersection =
                 turn_analysis.assignTurnTypes(node_u, edge_from_u, std::move(intersection));

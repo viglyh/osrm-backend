@@ -169,7 +169,7 @@ module.exports = function () {
     };
 
     this.lanesList = (instructions) => {
-        return this.extractInstructionList(instructions, instruction => ("lanes" in instruction.maneuver ? instruction.maneuver.lanes.join(' ') : ''));
+        return this.extractInstructionList(instructions, instruction => ('lanes' in instruction.maneuver ? instruction.maneuver.lanes.join(' ') : ''));
     };
 
     this.turnList = (instructions) => {

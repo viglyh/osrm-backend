@@ -36,7 +36,7 @@ NameTable::NameTable(const std::string &filename)
     }
     else
     {
-        util::SimpleLogger().Write(logWARNING) << "list of street names is empty";
+        util::SimpleLogger().Write(logINFO) << "list of street names is empty in construction of name table from: \"" << filename << "\"";
     }
     if (!name_stream)
         throw exception("Failed to read " + std::to_string(number_of_chars) +
