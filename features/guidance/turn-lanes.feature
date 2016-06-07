@@ -70,21 +70,22 @@ Feature: Turn Lane Guidance
     Scenario: Basic Turn Lane 4-Way WWith U-Turn Lane
         Given the node map
             |   |   | e |   |   |
-            | a |   | b |   | c |
+            | a | 1 | b |   | c |
             |   |   | d |   |   |
 
         And the ways
-            | nodes  | turn:lanes     | turn:lanes:forward  | name     |
-            | ab     |                | reverse;left\|right | in       |
-            | bc     |                |                     | straight |
-            | bd     |                |                     | right    |
-            | be     |                |                     | left     |
+            | nodes  | turn:lanes     | turn:lanes:forward          | name     |
+            | ab     |                | reverse;left\|through;right | in       |
+            | bc     |                |                             | straight |
+            | bd     |                |                             | right    |
+            | be     |                |                             | left     |
 
        When I route I should get
-            | waypoints | route                | turns                           | lanes |
-            | a,c       | in,straight,straight | depart,new name straight,arrive | ,1,   |
-            | a,d       | in,right,right       | depart,turn right,arrive        | ,0,   |
-            | a,e       | in,left,left         | depart,turn left,arrive         | ,1,   |
+            | from | to | bearings        | route                | turns                           | lanes |
+            | a    | c  | 180,180 180,180 | in,straight,straight | depart,new name straight,arrive | ,0,   |
+            | a    | d  | 180,180 180,180 | in,right,right       | depart,turn right,arrive        | ,0,   |
+            | a    | e  | 180,180 180,180 | in,left,left         | depart,turn left,arrive         | ,1,   |
+            | 1    | a  | 90,2 270,2      | in,in,in             | depart,turn uturn,arrive        | ,1,   |
 
 
     #this next test requires decision on how to announce lanes for going straight if there is no turn
@@ -308,3 +309,88 @@ Feature: Turn Lane Guidance
        When I route I should get
             | waypoints | route       | turns                                            | lanes |
             | d,a       | cd,bc,ab,ab | depart,end of road right,end of road left,arrive | ,0,1, |
+
+     Scenario: Turn at a traffic light
+        Given the node map
+            | a | b | c | d |
+            |   |   | e |   |
+
+        And the nodes
+            | node | highway         |
+            | b    | traffic_signals |
+
+        And the ways
+            | nodes | name | turn:lanes:forward |
+            | ab    | road | through\|right     |
+            | bc    | road |                    |
+            | cd    | road |                    |
+            | ce    | turn |                    |
+
+        When I route I should get
+            | waypoints | route          | turns                           | lanes |
+            | a,d       | road,road,road | depart,use lane straight,arrive | ,1,   |
+            | a,e       | road,turn,turn | depart,turn right,arrive        | ,0,   |
+
+
+     Scenario: Theodor Heuss Platz
+        Given the node map
+            |   |   |   | i | o |   |   | l |   |
+            |   |   | b |   |   |   | a |   | m |
+            |   | c |   |   |   |   |   |   |   |
+            |   |   |   |   |   |   |   | h |   |
+            |   |   |   |   |   |   |   |   |   |
+            | j |   |   |   |   |   |   |   |   |
+            |   |   |   |   |   |   |   | g |   |
+            |   |   |   |   |   |   |   |   |   |
+            |   | d |   |   |   |   |   |   |   |
+            |   |   | e |   |   |   | f |   |   |
+            |   |   |   |   | k |   |   |   | n |
+
+        And the nodes
+            | node | highway         |
+            | g    | traffic_signals |
+
+        And the ways
+            | nodes         | name          | turn:lanes:forward                                              | junction   | oneway | highway   |
+            | abcdef        | roundabout    |                                                                 | roundabout | yes    | primary   |
+            | gha           | roundabout    |                                                                 | roundabout | yes    | primary   |
+            | fg            | roundabout    | slight_left\|slight_left;slight_right&slight_right&slight_right | roundabout | yes    | primary   |
+            | aoib          | top           |                                                                 |            | yes    | primary   |
+            | cjd           | left          |                                                                 |            | yes    | primary   |
+            | ekf           | bottom        |                                                                 |            | yes    | primary   |
+            | fng           | bottom-right  |                                                                 |            | yes    | primary   |
+            | hma           | top-right     |                                                                 |            | yes    | primary   |
+            | hl            | top-right-out |                                                                 |            | yes    | secondary |
+
+        When I route I should get
+            | waypoints | route                           | turns                           | lanes   |
+            | i,m       | top,top-right,top-right         | depart,roundabout-exit-4,arrive | ,0 1 2, |
+            | i,l       | top,top-right-out,top-right-out | depart,roundabout-exit-4,arrive | ,2 3,   |
+            | i,o       | top,top,top                     | depart,roundabout-exit-5,arrive | ,,      |
+
+    Scenario: Turn Lanes Breaking up
+        Given the node map
+            |   |   |   | g |   |
+            |   |   |   |   |   |
+            |   |   |   | c |   |
+            | a | b |   | d | e |
+            |   |   |   |   |   |
+            |   |   |   | f |   |
+
+        And the ways
+            | nodes | names | turn:lanes:forward         | oneway | highway   |
+            | ab    | road  | left\|left&through&through | yes    | primary   |
+            | bd    | road  | through\|through           | yes    | primary   |
+            | bc    | road  | left\|left                 | yes    | primary   |
+            | de    | road  |                            | yes    | primary   |
+            | fdcg  | cross |                            |        | secondary |
+
+        And the relations
+            | type        | way:from | way:to | node:via | restriction   |
+            | restriction | bd       | fdcg   | d        | no_left_turn  |
+            | restriction | bc       | fdcg   | c        | no_right_turn |
+
+        When I route I should get
+            | waypoints | route            | turns                           | lanes |
+            | a,g       | road,cross,cross | depart,turn left,arrive         | ,2 3, |
+            | a,e       | road,road,road   | depart,use lane straight,arrive | ,0 1, |

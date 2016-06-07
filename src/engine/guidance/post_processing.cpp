@@ -159,6 +159,12 @@ RouteStep forwardInto(RouteStep destination, const RouteStep &source)
     destination.duration += source.duration;
     destination.distance += source.distance;
 
+    std::cout << "Forwarding" << std::endl;
+    print(destination);
+    std::cout << std::endl;
+    print(source);
+    std::cout << std::endl;
+
     if (destination.geometry_begin < source.geometry_begin)
     {
         destination.intersections.insert(destination.intersections.end(),
@@ -174,7 +180,11 @@ RouteStep forwardInto(RouteStep destination, const RouteStep &source)
 
     destination.geometry_begin = std::min(destination.geometry_begin, source.geometry_begin);
     destination.geometry_end = std::max(destination.geometry_end, source.geometry_end);
-    destination.maneuver.exit = destination.intersections.size() - 1;
+    destination.maneuver.exit = source.maneuver.exit;
+
+    std::cout << "Result:\n";
+    print(destination);
+    std::cout << std::endl;
 
     return destination;
 }
@@ -211,8 +221,7 @@ void fixFinalRoundabout(std::vector<RouteStep> &steps)
             // instruction though. it is not contained somewhere until now
             steps[propagation_index - 1] =
                 forwardInto(std::move(steps[propagation_index - 1]), propagation_step);
-            propagation_step.maneuver.instruction =
-                TurnInstruction::NO_TURN(); // mark intermediate instructions invalid
+            invalidateStep(propagation_step);
         }
     }
 }
@@ -259,11 +268,12 @@ void closeOffRoundabout(const bool on_roundabout,
                         std::vector<RouteStep> &steps,
                         const std::size_t step_index)
 {
+    std::cout << "Closing at: " << step_index << std::endl;
+    print(steps);
     auto &step = steps[step_index];
-    step.maneuver.exit += 1;
     if (!on_roundabout)
     {
-
+        std::cout << "Not On Roundabout" << std::endl;
         // We reached a special case that requires the addition of a special route step in the
         // beginning. We started in a roundabout, so to announce the exit, we move use the exit
         // instruction and move it right to the beginning to make sure to immediately announce the
@@ -288,6 +298,7 @@ void closeOffRoundabout(const bool on_roundabout,
         if (steps[1].maneuver.instruction.type == TurnType::EnterRotary)
             steps[1].rotary_name = steps[0].name;
     }
+    step.maneuver.exit += 1;
 
     // Normal exit from the roundabout, or exit from a previously fixed roundabout. Propagate the
     // index back to the entering location and prepare the current silent set of instructions for
@@ -298,6 +309,8 @@ void closeOffRoundabout(const bool on_roundabout,
     // intersections are locations passed along the way
     const auto exit_intersection = steps[step_index].intersections.front();
     const auto exit_bearing = exit_intersection.bearings[exit_intersection.out];
+    const auto destination_name = step.name;
+    const auto destinatino_name_id = step.name_id;
     if (step_index > 1)
     {
         // The very first route-step is head, so we cannot iterate past that one
@@ -308,8 +321,6 @@ void closeOffRoundabout(const bool on_roundabout,
             propagation_step = forwardInto(propagation_step, steps[propagation_index + 1]);
             if (entersRoundabout(propagation_step.maneuver.instruction))
             {
-                propagation_step.maneuver.exit = step.maneuver.exit;
-                propagation_step.geometry_end = step.geometry_end;
                 const auto entry_intersection = propagation_step.intersections.front();
 
                 // remember rotary name
@@ -333,21 +344,19 @@ void closeOffRoundabout(const bool on_roundabout,
                         ::osrm::util::guidance::getTurnDirection(angle);
                 }
 
-                propagation_step.name = step.name;
-                propagation_step.name_id = step.name_id;
+                propagation_step.name = destination_name;;
+                propagation_step.name_id = destinatino_name_id;
+                invalidateStep(steps[propagation_index + 1]);
                 break;
             }
             else
             {
-                BOOST_ASSERT(propagation_step.maneuver.instruction.type =
-                                 TurnType::StayOnRoundabout);
-                propagation_step.maneuver.instruction =
-                    TurnInstruction::NO_TURN(); // mark intermediate instructions invalid
+                invalidateStep(steps[propagation_index + 1]);
             }
         }
         // remove exit
-        step.maneuver.instruction = TurnInstruction::NO_TURN();
     }
+    print(steps);
 }
 
 // elongate a step by another. the data is added either at the front, or the back
@@ -654,6 +663,8 @@ std::vector<RouteStep> postProcess(std::vector<RouteStep> steps)
             // Remember the last non silent instruction
             last_valid_instruction = step_index;
         }
+        else if( has_entered_roundabout )
+                steps[step_index + 1].maneuver.exit = step.maneuver.exit;
     }
 
     // unterminated roundabout

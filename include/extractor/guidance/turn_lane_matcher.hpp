@@ -63,8 +63,7 @@ class TurnLaneMatcher
     std::pair<TurnLaneMatcher::LaneDataVector, TurnLaneMatcher::LaneDataVector> partitionLaneData(
         const NodeID at, LaneDataVector turn_lane_data, const Intersection &intersection) const;
 
-    LaneDataVector handleNoneValueAtSimpleTurn(const NodeID at,
-                                               LaneDataVector lane_data,
+    LaneDataVector handleNoneValueAtSimpleTurn(LaneDataVector lane_data,
                                                const Intersection &intersection) const;
 
     Intersection simpleMatchTuplesToTurns(Intersection intersection,

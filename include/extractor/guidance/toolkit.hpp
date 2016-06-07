@@ -466,12 +466,12 @@ inline ConnectedRoad mirror(ConnectedRoad road)
 // This is in contrast to a situation with lanes:psv:forward=0 (or not set) where left|through|
 // represents left|through|through
 inline std::string
-trimLaneString(std::string lane_string, std::uint32_t count_left, std::uint32_t count_right)
+trimLaneString(std::string lane_string, std::int32_t count_left, std::int32_t count_right)
 {
     if (count_left)
     {
-        bool sane = count_left < lane_string.size();
-        for (std::size_t i = 0; i < count_left; ++i)
+        bool sane = count_left < static_cast<std::int32_t>(lane_string.size());
+        for (std::int32_t i = 0; i < count_left; ++i)
             // this is adjusted for our fake pipe. The moment cucumber can handle multiple escaped
             // pipes, the '&' part can be removed
             if (lane_string[i] != '|' && lane_string[i] != '&')
@@ -487,7 +487,7 @@ trimLaneString(std::string lane_string, std::uint32_t count_left, std::uint32_t 
     }
     if (count_right)
     {
-        bool sane = count_right < lane_string.size();
+        bool sane = count_right < static_cast<std::int32_t>(lane_string.size());
         for( auto itr = lane_string.rbegin(); itr != lane_string.rend() && itr != lane_string.rbegin() + count_right; ++itr )
         {
             if( *itr != '|' && *itr != '&' )

@@ -89,7 +89,6 @@ TurnAnalysis::transformIntersectionIntoTurns(const Intersection &intersection) c
         if (road.entry_allowed)
             turns.emplace_back(road.turn);
 
-    std::cout << "Resulted in: " << turns.size() << " turns." << std::endl;
     return turns;
 }
 
