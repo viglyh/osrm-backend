@@ -305,6 +305,8 @@ Intersection TurnLaneMatcher::assignTurnLanes(const EdgeID via_edge,
         return previous_string;
     }();
 
+
+
     if (turn_lane_string.empty() && previous_lane_string.empty())
     {
         for (auto &road : intersection)
@@ -322,14 +324,12 @@ Intersection TurnLaneMatcher::assignTurnLanes(const EdgeID via_edge,
     {
         for (auto &road : intersection)
             road.turn.instruction.lane_tupel = {0, INVALID_LANEID};
+
         return intersection;
     }
 
     // check whether we are at a simple intersection
     bool is_simple = isSimpleIntersection(lane_data, intersection);
-
-    auto node = node_based_graph.GetTarget(via_edge);
-    auto coordinate = node_info_list[node];
 
     if (is_simple && !turn_lane_string.empty())
     {
@@ -351,7 +351,7 @@ Intersection TurnLaneMatcher::assignTurnLanes(const EdgeID via_edge,
         }
         else if (!previous_lane_string.empty())
         {
-            if (lane_data.size() > detail::getNumberOfTurns(previous_intersection))
+            if (lane_data.size() >= detail::getNumberOfTurns(previous_intersection))
             {
                 lane_data = partitionLaneData(node_based_graph.GetTarget(previous_id),
                                               std::move(lane_data),
@@ -414,7 +414,7 @@ Intersection TurnLaneMatcher::assignTurnLanes(const EdgeID via_edge,
 
         */
 
-        if (lane_data.size() > detail::getNumberOfTurns(intersection))
+        if (lane_data.size() >= detail::getNumberOfTurns(intersection))
         {
             lane_data = partitionLaneData(node_based_graph.GetTarget(via_edge),
                                           std::move(lane_data),
@@ -431,13 +431,10 @@ Intersection TurnLaneMatcher::assignTurnLanes(const EdgeID via_edge,
             }
         }
     }
-    else
-    {
         for (auto &road : intersection)
             road.turn.instruction.lane_tupel = {0, INVALID_LANEID};
 
         return intersection;
-    }
 }
 
 /*
@@ -789,7 +786,7 @@ TurnLaneMatcher::partitionLaneData(const NodeID at,
                                    LaneDataVector turn_lane_data,
                                    const Intersection &intersection) const
 {
-    BOOST_ASSERT(turn_lane_data.size() > detail::getNumberOfTurns(intersection));
+    BOOST_ASSERT(turn_lane_data.size() >= detail::getNumberOfTurns(intersection));
     /*
      * A Segregated intersection can provide turn lanes for turns that are not yet possible.
      * The straightforward example would be coming up to the following situation:
@@ -814,15 +811,18 @@ TurnLaneMatcher::partitionLaneData(const NodeID at,
     // Try and maitch lanes to available turns. For Turns that are not directly matchable, check
     // whether we can match them at the upcoming intersection.
 
-    const auto straightmos_index = detail::findClosestTurnIndex(intersection, STRAIGHT_ANGLE);
+    const auto straightmost_index = detail::findClosestTurnIndex(intersection, STRAIGHT_ANGLE);
 
-    const auto &straightmost = intersection[straightmos_index];
+    const auto &straightmost = intersection[straightmost_index];
 
     auto straight_tag_index = findTag("through", turn_lane_data);
+    if( straight_tag_index == turn_lane_data.size() && straightmost.entry_allowed )
+    {
+        turn_lane_data.push_back({"through",std::numeric_limits<LaneID>::max(),std::numeric_limits<LaneID>::min()});
+    }
     // if we have a straight turn, we can check for available turns and postpone other till
     // later
-    if (angularDeviation(straightmost.turn.angle, STRAIGHT_ANGLE) < NARROW_TURN_ANGLE &&
-        straight_tag_index < turn_lane_data.size())
+    if (angularDeviation(straightmost.turn.angle, STRAIGHT_ANGLE) < NARROW_TURN_ANGLE)
     {
         auto next_intersection = turn_analysis.getIntersection(at, straightmost.turn.eid);
         next_intersection =
