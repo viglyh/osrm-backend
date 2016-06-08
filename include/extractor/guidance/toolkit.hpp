@@ -480,26 +480,41 @@ trimLaneString(std::string lane_string, std::int32_t count_left, std::int32_t co
                 break;
             }
 
-        if( sane )
+        if (sane)
         {
-            lane_string.erase(lane_string.begin(),lane_string.begin() + count_left);
+            lane_string.erase(lane_string.begin(), lane_string.begin() + count_left);
         }
     }
     if (count_right)
     {
         bool sane = count_right < static_cast<std::int32_t>(lane_string.size());
-        for( auto itr = lane_string.rbegin(); itr != lane_string.rend() && itr != lane_string.rbegin() + count_right; ++itr )
+        for (auto itr = lane_string.rbegin();
+             itr != lane_string.rend() && itr != lane_string.rbegin() + count_right;
+             ++itr)
         {
-            if( *itr != '|' && *itr != '&' )
+            if (*itr != '|' && *itr != '&')
             {
                 sane = false;
                 break;
             }
         }
-        if( sane )
-            lane_string.resize( lane_string.size() - count_right );
+        if (sane)
+            lane_string.resize(lane_string.size() - count_right);
     }
     return lane_string;
+}
+
+inline bool entersRoundabout(const extractor::guidance::TurnInstruction instruction)
+{
+    return (instruction.type == extractor::guidance::TurnType::EnterRoundabout ||
+            instruction.type == extractor::guidance::TurnType::EnterRotary ||
+            instruction.type == extractor::guidance::TurnType::EnterRoundaboutIntersection ||
+            instruction.type == extractor::guidance::TurnType::EnterRoundaboutAtExit ||
+            instruction.type == extractor::guidance::TurnType::EnterRotaryAtExit ||
+            instruction.type == extractor::guidance::TurnType::EnterRoundaboutIntersectionAtExit ||
+            instruction.type == extractor::guidance::TurnType::EnterAndExitRoundabout ||
+            instruction.type == extractor::guidance::TurnType::EnterAndExitRotary ||
+            instruction.type == extractor::guidance::TurnType::EnterAndExitRotary);
 }
 
 } // namespace guidance

@@ -51,6 +51,8 @@ ExtractionContainers::ExtractionContainers()
     name_lengths.push_back(0);
     name_lengths.push_back(0);
     name_lengths.push_back(0);
+    name_lengths.push_back(0);
+    name_lengths.push_back(0);
     turn_lane_lengths.push_back(0);
 }
 

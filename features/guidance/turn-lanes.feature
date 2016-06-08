@@ -378,7 +378,7 @@ Feature: Turn Lane Guidance
             |   |   |   | f |   |
 
         And the ways
-            | nodes | names | turn:lanes:forward         | oneway | highway   |
+            | nodes | name  | turn:lanes:forward         | oneway | highway   |
             | ab    | road  | left\|left&through&through | yes    | primary   |
             | bd    | road  | through\|through           | yes    | primary   |
             | bc    | road  | left\|left                 | yes    | primary   |
@@ -394,3 +394,230 @@ Feature: Turn Lane Guidance
             | waypoints | route            | turns                           | lanes |
             | a,g       | road,cross,cross | depart,turn left,arrive         | ,2 3, |
             | a,e       | road,road,road   | depart,use lane straight,arrive | ,0 1, |
+
+    Scenario: U-Turn Road at Intersection
+        Given the node map
+            |   |   |   |   |   | h |   |
+            |   |   |   |   | f | e | j |
+            | a | b |   |   |   |   |   |
+            |   |   |   |   | c | d | i |
+            |   |   |   |   |   | g |   |
+
+        And the ways
+            | nodes | name  | turn:lanes:forward | oneway | highway  |
+            | ab    | road  |                    | no     | primary  |
+            | di    | road  |                    | yes    | primary  |
+            | bc    | road  |                    | yes    | primary  |
+            | cd    | road  |                    | yes    | primary  |
+            | bc    | road  | \|through&right    | yes    | primary  |
+            | cd    | road  | \|through&right    | yes    | primary  |
+            | fc    | road  |                    | no     | tertiary |
+            | jefb  | road  |                    | yes    | primary  |
+            | gdeh  | cross |                    | no     | primary  |
+
+       When I route I should get
+            | from | to | bearings        | route            | turns                           | lanes |
+            | a    | g  | 180,180 180,180 | road,cross,cross | depart,turn right,arrive        | ,0,   |
+            | a    | h  | 180,180 180,180 | road,cross,cross | depart,turn left,arrive         | ,2,   |
+            | a    | i  | 180,180 180,180 | road,road,road   | depart,use lane straight,arrive | ,1 2, |
+            | b    | a  | 90,2 270,2      | road,road,road   | depart,continue uturn,arrive    | ,2,   |
+
+    Scenario: Segregated Intersection Merges With Lanes
+        Given the node map
+            |   |   |   |   |   |   | f |
+            |   |   |   |   |   |   |   |
+            | e |   |   | d |   |   |   |
+            |   |   |   |   |   | c | g |
+            | a |   |   | b |   |   |   |
+            |   |   |   |   |   |   |   |
+            |   |   |   |   |   | h |   |
+
+        And the ways
+            | nodes | name     | turn:lanes:forward              | oneway | highway   |
+            | abc   | road     | left\|left&left&through&through | yes    | primary   |
+            | cde   | road     |                                 | yes    | primary   |
+            | hc    | cross    |                                 | yes    | secondary |
+            | cg    | straight |                                 | no     | tertiary  |
+            | cf    | left     |                                 | yes    | primary   |
+
+        When I route I should get
+            | waypoints | route                  | turns                           | lanes   |
+            | a,f       | road,left,left         | depart,turn left,arrive         | ,2 3 4, |
+            | a,e       | road,road,road         | depart,turn uturn,arrive        | ,4,     |
+            | a,g       | road,straight,straight | depart,new name straight,arrive | ,0 1,   |
+
+     Scenario: Passing Through a Roundabout
+        Given the node map
+            |   |   | h |   | g |   |   |
+            |   | a |   |   |   | f | k |
+            | i |   |   |   |   |   |   |
+            |   |   |   |   |   |   |   |
+            |   | b |   |   |   | e |   |
+            |   |   | c |   | d |   |   |
+            |   |   |   |   | j |   |   |
+
+        And the ways
+            | nodes | name   | turn:lanes:forward                    | oneway | highway   | junction   |
+            | efgha | round  |                                       | yes    | primary   | roundabout |
+            | ab    | round  |                                       | yes    | primary   | roundabout |
+            | bc    | round  | slight_left\|slight_left&slight_right | yes    | primary   | roundabout |
+            | cd    | round  |                                       | yes    | primary   | roundabout |
+            | de    | round  | slight_left\|slight_right             | yes    | primary   | roundabout |
+            | ib    | left   | slight_left\|slight_left&slight_right | yes    | primary   |            |
+            | cj    | bottom |                                       | yes    | primary   |            |
+            | ek    | right  |                                       | yes    | primary   |            |
+
+        When I route I should get
+            | waypoints | route               | turns                      | lanes |
+            | i,j       | left,bottom,bottom, | depart,round-exit-1,arrive | ,0,   |
+            | i,k       | left,right,right    | depart,round-exit-2,arrive | ,1,   |
+
+    Scenario: Crossing Traffic Light
+        Given the node map
+            | a |   | b |   | c |   | d |
+            |   |   |   |   |   |   | e |
+
+        And the nodes
+            | node | highway         |
+            | b    | traffic_signals |
+
+        And the ways
+            | nodes | name  | turn:lanes:forward                                 | highway |
+            | abc   | road  | through\|through&through;slight_right&slight_right | primary |
+            | cd    | road  |                                                    | primary |
+            | ce    | cross |                                                    | primary |
+
+        When I route I should get
+            | waypoints | route            | turns                           | lanes   |
+            | a,d       | road,road,road   | depart,use lane straight,arrive | ,1 2 3, |
+            | a,e       | road,cross,cross | depart,turn slight right,arrive | ,0 1,   |
+
+    Scenario: Highway Ramp
+        Given the node map
+            | a |   | b |   | c |   | d |
+            |   |   |   |   |   |   | e |
+
+        And the ways
+            | nodes | name | turn:lanes:forward                                 | highway       |
+            | abc   | hwy  | through\|through&through;slight_right&slight_right | motorway      |
+            | cd    | hwy  |                                                    | motorway      |
+            | ce    | ramp |                                                    | motorway_link |
+
+        When I route I should get
+            | waypoints | route         | turns                               | lanes   |
+            | a,d       | hwy,hwy,hwy   | depart,use lane straight,arrive     | ,1 2 3, |
+            | a,e       | hwy,ramp,ramp | depart,off ramp slight right,arrive | ,0 1,   |
+
+     Scenario: Turning Off Ramp
+        Given the node map
+            |   | a |   |
+            | d | c | b |
+            | e | f | g |
+            |   | h |   |
+
+        And the ways
+            | nodes | name | turn:lanes:forward | highway       | oneway |
+            | ac    | off  | left\|right        | motorway_link | yes    |
+            | bcd   | road |                    | primary       | yes    |
+            | cf    | road |                    | primary       |        |
+            | efg   | road |                    | primary       | yes    |
+            | fh    | on   |                    | motorway_link | yes    |
+
+        When I route I should get
+            | waypoints | route         | turns                    | lanes |
+            | a,d       | off,road,road | depart,turn_right,arrive | ,0,   |
+            | a,g       | off,road,road | depart,turn_left,arrive  | ,1,   |
+            | a,h       |               |                          |       |
+
+     Scenario: Off Ramp In a Turn
+        Given the node map
+            | a |   |   |   |   |   |   |   |   |   |   |   |
+            |   |   |   |   |   |   |   |   |   |   |   |   |
+            |   |   |   |   |   | b |   |   |   |   |   | c |
+            |   |   |   |   |   |   |   |   |   |   | d |   |
+
+        And the ways
+            | nodes | name | turn:lanes:forward            | highway       | oneway |
+            | ab    | hwy  | through\|through&slight_right | motorway      | yes    |
+            | bc    | hwy  |                               | motorway      | yes    |
+            | bd    | ramp |                               | motorway_link | yes    |
+
+        When I route I should get
+            | waypoints | route         | turns                               | lanes |
+            | a,c       | hwy,hwy,hwy   | depart,use lane slight left,arrive  | ,1 2, |
+            | a,d       | hwy,ramp,ramp | depart,off ramp slight right,arrive | ,0,   |
+
+     Scenario: Reverse Lane in Segregated Road
+        Given the node map
+            | h |   |   |   |   | g |   |   |   |   |   | f |
+            |   |   |   |   |   |   |   | e |   |   |   |   |
+            |   |   |   |   |   |   |   | d |   |   |   |   |
+            | a |   |   |   |   | b |   |   |   |   |   | c |
+
+        And the ways
+            | nodes | name | turn:lanes:forward       | highway      | oneway |
+            | ab    | road | reverse\|through&through | primary      | yes    |
+            | bc    | road |                          | primary      | yes    |
+            | bdeg  | road |                          | primary_link | yes    |
+            | fgh   | road |                          | primary      | yes    |
+
+        When I route I should get
+            | waypoints | route          | turns                        | lanes |
+            | a,h       | road,road,road | depart,continue uturn,arrive | ,2,   |
+
+    Scenario: Reverse Lane in Segregated Road with none
+        Given the node map
+            | h |   |   |   |   | g |   |   |   |   |   | f |
+            |   |   |   |   |   |   |   | e |   |   |   |   |
+            |   |   |   |   |   |   |   | d |   |   |   |   |
+            | a |   |   |   |   | b |   |   |   |   |   | c |
+
+        And the ways
+            | nodes | name | turn:lanes:forward    | highway      | oneway |
+            | ab    | road | reverse\|through&none | primary      | yes    |
+            | bc    | road |                       | primary      | yes    |
+            | bdeg  | road |                       | primary_link | yes    |
+            | fgh   | road |                       | primary      | yes    |
+
+        When I route I should get
+            | waypoints | route          | turns                        | lanes |
+            | a,h       | road,road,road | depart,continue uturn,arrive | ,2,   |
+
+    Scenario: Reverse Lane in Segregated Road with none, Service Turn Prior
+        Given the node map
+            | h |   |   |   |   | g |   |   |   |   |   | f |
+            |   |   |   |   |   |   |   | e |   |   |   |   |
+            |   |   |   |   |   |   |   | d |   |   |   |   |
+            | a |   | j |   |   | b |   |   |   |   |   | c |
+            |   |   | i |   |   |   |   |   |   |   |   |   |
+
+        And the ways
+            | nodes | name | turn:lanes:forward    | highway      | oneway |
+            | ajb   | road | reverse\|through&none | primary      | yes    |
+            | bc    | road |                       | primary      | yes    |
+            | bdeg  | road |                       | primary_link | yes    |
+            | fgh   | road |                       | primary      | yes    |
+            | ji    | park |                       | service      | no     |
+
+        When I route I should get
+            | waypoints | route          | turns                        | lanes |
+            | a,h       | road,road,road | depart,continue uturn,arrive | ,2,   |
+
+    Scenario: Don't collapse everything to u-turn / too wide
+        Given the node map
+            | a |   | b |   | e |
+            |   |   |   |   |   |
+            | d |   | c |   | f |
+
+        And the ways
+            | nodes | highway   | name   | turn:lanes:forward |
+            | ab    | primary   | road   | through\|right     |
+            | bc    | primary   | road   |                    |
+            | dc    | primary   | road   | left\|through      |
+            | be    | secondary | top    |                    |
+            | cf    | secondary | bottom |                    |
+
+        When I route I should get
+            | waypoints | turns                                          | route               | lanes |
+            | a,d       | depart,continue right,end of road right,arrive | road,road,road,road | ,0,,  |
+            | d,a       | depart,continue left,end of road left,arrive   | road,road,road,road | ,1,,  |

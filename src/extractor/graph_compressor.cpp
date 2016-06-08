@@ -113,10 +113,8 @@ void GraphCompressor::Compress(const std::unordered_set<NodeID> &barrier_nodes,
             // traffic signals in the `traffic_lights` list, which EdgeData
             // doesn't have access to.
             const bool has_node_penalty = traffic_lights.find(node_v) != traffic_lights.end();
-            if (has_node_penalty)
-            {
+            if( has_node_penalty )
                 continue;
-            }
 
             // Get distances before graph is modified
             const int forward_weight1 = graph.GetEdgeData(forward_e1).distance;
