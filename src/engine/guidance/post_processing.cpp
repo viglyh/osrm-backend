@@ -33,6 +33,16 @@ namespace
 {
 const constexpr double MAX_COLLAPSE_DISTANCE = 25;
 
+inline bool choiceless(const RouteStep &step, const RouteStep &previous)
+{
+    // if the next turn is choiceless, we consider longer turn roads collapsable than usually
+    // accepted. We might need to improve this to find out whether we merge onto a through-street.
+    return previous.distance < 3 * MAX_COLLAPSE_DISTANCE &&
+           1 >= std::count(step.intersections.front().entry.begin(),
+                           step.intersections.front().entry.end(),
+                           true);
+};
+
 // List of types that can be collapsed, if all other restrictions pass
 bool isCollapsableInstruction(const TurnInstruction instruction)
 {
@@ -40,6 +50,8 @@ bool isCollapsableInstruction(const TurnInstruction instruction)
            (instruction.type == TurnType::Suppressed &&
             instruction.direction_modifier == DirectionModifier::Straight) ||
            (instruction.type == TurnType::Turn &&
+            instruction.direction_modifier == DirectionModifier::Straight) ||
+           (instruction.type == TurnType::Continue &&
             instruction.direction_modifier == DirectionModifier::Straight) ||
            (instruction.type == TurnType::Merge);
 }
@@ -387,7 +399,11 @@ void collapseTurnAt(std::vector<RouteStep> &steps,
 
     BOOST_ASSERT(!one_back_step.intersections.empty() && !current_step.intersections.empty());
     // Very Short New Name
-    if (collapsable(one_back_step))
+    if (((collapsable(one_back_step) ||
+          (isCollapsableInstruction(one_back_step.maneuver.instruction) &&
+           choiceless(current_step, one_back_step))) &&
+         !(one_back_step.maneuver.instruction.type == TurnType::Merge)))
+    // the check against merge is a workaround for motorways
     {
         BOOST_ASSERT(two_back_index < steps.size());
         if (compatible(one_back_step, steps[two_back_index]))
@@ -433,7 +449,11 @@ void collapseTurnAt(std::vector<RouteStep> &steps,
             {
                 steps[one_back_index].maneuver.instruction.type = TurnType::Continue;
             }
-            else if (TurnType::Merge == one_back_step.maneuver.instruction.type)
+            else if (TurnType::Merge == one_back_step.maneuver.instruction.type &&
+                     current_step.maneuver.instruction.type !=
+                         TurnType::Suppressed) // This suppressed is a check for highways. We might
+                                               // need a highway-suppressed to get the turn onto a
+                                               // highway...
             {
                 steps[one_back_index].maneuver.instruction.direction_modifier =
                     util::guidance::mirrorDirectionModifier(
@@ -445,7 +465,8 @@ void collapseTurnAt(std::vector<RouteStep> &steps,
         }
     }
     // Potential U-Turn
-    else if (one_back_step.distance <= MAX_COLLAPSE_DISTANCE &&
+    else if ((one_back_step.distance <= MAX_COLLAPSE_DISTANCE ||
+              choiceless(current_step, one_back_step)) &&
              bearingsAreReversed(util::bearing::reverseBearing(
                                      one_back_step.intersections.front()
                                          .bearings[one_back_step.intersections.front().in]),
@@ -529,6 +550,7 @@ std::vector<RouteStep> removeNoTurnInstructions(std::vector<RouteStep> steps)
 // that we come across.
 std::vector<RouteStep> postProcess(std::vector<RouteStep> steps)
 {
+    print(steps);
     // the steps should always include the first/last step in form of a location
     BOOST_ASSERT(steps.size() >= 2);
     if (steps.size() == 2)
@@ -648,6 +670,8 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
     for (std::size_t step_index = 1; step_index + 1 < steps.size(); ++step_index)
     {
         const auto &current_step = steps[step_index];
+        if( current_step.maneuver.instruction.type == TurnType::NoTurn )
+            continue;
         const auto one_back_index = getPreviousIndex(step_index);
         BOOST_ASSERT(one_back_index < steps.size());
 
@@ -748,7 +772,8 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
                     invalidateStep(steps[step_index]);
                 }
             }
-            else if (one_back_step.distance <= MAX_COLLAPSE_DISTANCE)
+            else if (choiceless(current_step, one_back_step) ||
+                     one_back_step.distance <= MAX_COLLAPSE_DISTANCE)
             {
                 // check for one of the multiple collapse scenarios and, if possible, collapse the
                 // turn
@@ -757,7 +782,8 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
                 collapseTurnAt(steps, two_back_index, one_back_index, step_index);
             }
         }
-        else if (one_back_index > 0 && one_back_step.distance <= MAX_COLLAPSE_DISTANCE)
+        else if (one_back_index > 0 && (one_back_step.distance <= MAX_COLLAPSE_DISTANCE ||
+                                        choiceless(current_step, one_back_step)))
         {
             // check for one of the multiple collapse scenarios and, if possible, collapse the turn
             const auto two_back_index = getPreviousIndex(one_back_index);
