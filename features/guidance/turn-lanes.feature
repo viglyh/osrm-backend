@@ -621,3 +621,17 @@ Feature: Turn Lane Guidance
             | waypoints | turns                                          | route               | lanes |
             | a,d       | depart,continue right,end of road right,arrive | road,road,road,road | ,0,,  |
             | d,a       | depart,continue left,end of road left,arrive   | road,road,road,road | ,1,,  |
+
+     Scenario: Merge Lanes Onto Freeway
+        Given the node map
+            | a |   |   | b | c |
+            |   | d |   |   |   |
+
+        And the ways
+            | nodes | highway       | name | turn:lanes:forward         |
+            | abc   | motorway      | Hwy  |                            |
+            | db    | motorway_link | ramp | slight_right\|slight_right |
+
+        When I route I should get
+            | waypoints | turns                           | route        | lanes |
+            | d,c       | depart,merge slight left,arrive | ramp,Hwy,Hwy | ,0 1, |

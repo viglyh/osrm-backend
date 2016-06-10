@@ -64,20 +64,35 @@ std::size_t findClosestTurnIndex(const Intersection &intersection, const double 
     return std::distance(intersection.begin(), itr);
 }
 
-bool isValidMatch(const std::string &tag, const TurnInstruction &instruction)
+bool isValidMatch(const std::string &tag, const TurnInstruction instruction)
 {
-    if (tag == "reverse")
-    {
+    const auto hasLeftModifier = [](const TurnInstruction instruction) {
         return instruction.direction_modifier == DirectionModifier::SlightLeft ||
                instruction.direction_modifier == DirectionModifier::Left ||
-               instruction.direction_modifier == DirectionModifier::SharpLeft ||
+               instruction.direction_modifier == DirectionModifier::SharpLeft;
+    };
+
+    const auto hasRightModifier = [](const TurnInstruction instruction) {
+        return instruction.direction_modifier == DirectionModifier::SlightRight ||
+               instruction.direction_modifier == DirectionModifier::Right ||
+               instruction.direction_modifier == DirectionModifier::SharpRight;
+    };
+
+    const auto isMirroredModifier = [](const TurnInstruction instruction) {
+        return instruction.type == TurnType::Merge;
+    };
+
+    if (tag == "reverse")
+    {
+        return hasLeftModifier(instruction) ||
                instruction.direction_modifier == DirectionModifier::UTurn;
     }
     else if (tag == "sharp_right" || tag == "right" || tag == "slight_right")
     {
-        return instruction.direction_modifier == DirectionModifier::SlightRight ||
-               instruction.direction_modifier == DirectionModifier::Right ||
-               instruction.direction_modifier == DirectionModifier::SharpRight;
+        if (isMirroredModifier(instruction))
+            return hasLeftModifier(instruction);
+        else
+            return hasRightModifier(instruction);
     }
     else if (tag == "through")
     {
@@ -96,9 +111,10 @@ bool isValidMatch(const std::string &tag, const TurnInstruction &instruction)
     }
     else if (tag == "slight_left" || tag == "left" || tag == "sharp_left")
     {
-        return instruction.direction_modifier == DirectionModifier::SlightLeft ||
-               instruction.direction_modifier == DirectionModifier::Left ||
-               instruction.direction_modifier == DirectionModifier::SharpLeft;
+        if (isMirroredModifier(instruction))
+            return hasRightModifier(instruction);
+        else
+            return hasLeftModifier(instruction);
     }
     return false;
 }
@@ -880,6 +896,7 @@ bool TurnLaneMatcher::isSimpleIntersection(const LaneDataVector &lane_data,
             has_none = true;
             continue;
         }
+
         const auto best_match = detail::findBestMatch(data.tag, intersection);
         std::size_t match_index = std::distance(intersection.begin(), best_match);
         all_simple &= (matched_indices.count(match_index) == 0);
@@ -887,6 +904,7 @@ bool TurnLaneMatcher::isSimpleIntersection(const LaneDataVector &lane_data,
         // in case of u-turns, we might need to activate them first
         all_simple &= (best_match->entry_allowed || match_index == 0);
         all_simple &= detail::isValidMatch(data.tag, best_match->turn.instruction);
+        std::cout << "Tag: " << data.tag << " matched to: " << match_index << " valid: " << detail::isValidMatch(data.tag,best_match->turn.instruction) << " all simple now: " << all_simple << std::endl;
     }
 
     std::cout << "All Simple: " << all_simple << std::endl;
@@ -1040,17 +1058,18 @@ Intersection TurnLaneMatcher::simpleMatchTuplesToTurns(Intersection intersection
                                                        const LaneID num_lanes,
                                                        const LaneDataVector &lane_data) const
 {
+    std::cout << "Assign Turns" << std::endl;
     if (lane_data.empty())
         return intersection;
 
     if (intersection.size() == 2 ||
-        std::count_if(
-            lane_data.begin(),
-            lane_data.end(),
-            [](const TurnLaneData &data) { return boost::starts_with(data.tag, "merge"); }) +
-                std::size_t{1} >=
-            lane_data.size() > 0)
+        std::count_if(lane_data.begin(), lane_data.end(), [](const TurnLaneData &data) {
+            return boost::starts_with(data.tag, "merge");
+        }) > 0)
+    {
+        std::cout << "Bailing since intersection size is low, or we consider merge" << std::endl;
         return intersection;
+    }
 
     const std::size_t possible_entries =
         std::count_if(intersection.begin(), intersection.end(), [](const ConnectedRoad &road) {
@@ -1059,7 +1078,11 @@ Intersection TurnLaneMatcher::simpleMatchTuplesToTurns(Intersection intersection
 
     for (auto entry : lane_data)
         if (entry.tag == "none")
+        {
+            util::SimpleLogger().Write(logDEBUG)
+                << "Did not handle \"none\" prior to lane assignment";
             return intersection;
+        }
 
     /*
     if (!(lane_data.size() ==
@@ -1148,6 +1171,7 @@ Intersection TurnLaneMatcher::simpleMatchTuplesToTurns(Intersection intersection
         }
     }
 
+    std::cout << "Successfully assigned turns" << std::endl;
     return intersection;
 }
 
