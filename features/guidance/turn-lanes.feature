@@ -635,3 +635,21 @@ Feature: Turn Lane Guidance
         When I route I should get
             | waypoints | turns                           | route        | lanes |
             | d,c       | depart,merge slight left,arrive | ramp,Hwy,Hwy | ,0 1, |
+
+     Scenario: Fork on motorway links - don't fork on through but use lane
+        Given the node map
+            | i |   |   |   |   | a |
+            | j |   | c | b |   | x |
+
+        And the ways
+            | nodes | name | highway       | turn:lanes:forward |
+            | xb    | xbcj | motorway_link |                    |
+            | bc    | xbcj | motorway_link | none\|slight_right |
+            | cj    | xbcj | motorway_link |                    |
+            | ci    | off  | motorway_link |                    |
+            | ab    | on   | motorway_link |                    |
+
+        When I route I should get
+            | waypoints | route             | turns                                             | lanes |
+            | a,j       | on,xbcj,xbcj,xbcj | depart,merge slight left,use lane straight,arrive | ,,1,  |
+            | a,i       | on,xbcj,off,off   | depart,merge slight left,fork slight right,arrive | ,,0,  |

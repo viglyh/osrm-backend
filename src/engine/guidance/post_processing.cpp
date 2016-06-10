@@ -498,8 +498,7 @@ void collapseTurnAt(std::vector<RouteStep> &steps,
     }
     // very short segment after turn
     else if (one_back_step.distance <= MAX_COLLAPSE_DISTANCE &&
-             (current_step.maneuver.instruction.type == TurnType::UseLane ||
-              isCollapsableInstruction(current_step.maneuver.instruction)))
+              isCollapsableInstruction(current_step.maneuver.instruction))
     {
         std::cout << "Second" << std::endl;
         // TODO check for lanes
