@@ -39,7 +39,7 @@ inline bool choiceless(const RouteStep &step, const RouteStep &previous)
     // accepted. We might need to improve this to find out whether we merge onto a through-street.
     BOOST_ASSERT(!step.intersections.empty());
     std::cout << "Checking for choice" << std::endl;
-    const auto is_without_choice = previous.distance < 3 * MAX_COLLAPSE_DISTANCE &&
+    const auto is_without_choice = previous.distance < 4 * MAX_COLLAPSE_DISTANCE &&
            1 >= std::count(step.intersections.front().entry.begin(),
                            step.intersections.front().entry.end(),
                            true);
@@ -750,6 +750,9 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
         const auto one_back_index = getPreviousIndex(step_index);
         BOOST_ASSERT(one_back_index < steps.size());
 
+        std::cout << "Indices: " << step_index << " " << one_back_index << std::endl;
+        print(current_step);
+        std::cout << std::endl;
         const auto &one_back_step = steps[one_back_index];
         // how long has a name change to be so that we announce it, even as a bridge?
         const constexpr auto name_segment_cutoff_length = 100;
@@ -763,6 +766,7 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
         // TurnType::Sliproad != TurnType::NoTurn
         if (one_back_step.maneuver.instruction.type == TurnType::Sliproad)
         {
+            std::cout << "A" << std::endl;
             // Handle possible u-turns between highways that look like slip-roads
             if (steps[getPreviousIndex(one_back_index)].name_id == steps[step_index].name_id &&
                 steps[step_index].name_id != EMPTY_NAMEID)
@@ -800,6 +804,7 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
                  steps[getPreviousNameIndex(step_index)].name == current_step.name &&
                  canCollapseAll(getPreviousNameIndex(step_index) + 1, step_index + 1))
         {
+            std::cout << "B" << std::endl;
             BOOST_ASSERT(step_index > 0);
             const std::size_t last_available_name_index = getPreviousNameIndex(step_index);
 
@@ -817,6 +822,7 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
                  isCollapsableInstruction(current_step.maneuver.instruction) &&
                  isCollapsableInstruction(one_back_step.maneuver.instruction))
         {
+            std::cout << "C" << std::endl;
             const auto two_back_index = getPreviousIndex(one_back_index);
             BOOST_ASSERT(two_back_index < steps.size());
             // valid, since one_back is collapsable:
@@ -860,6 +866,7 @@ std::vector<RouteStep> collapseTurns(std::vector<RouteStep> steps)
         else if (one_back_index > 0 && (one_back_step.distance <= MAX_COLLAPSE_DISTANCE ||
                                         choiceless(current_step, one_back_step)))
         {
+            std::cout << "D" << std::endl;
             // check for one of the multiple collapse scenarios and, if possible, collapse the turn
             const auto two_back_index = getPreviousIndex(one_back_index);
             BOOST_ASSERT(two_back_index < steps.size());
