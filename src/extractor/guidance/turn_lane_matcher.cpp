@@ -244,14 +244,14 @@ Intersection TurnLaneMatcher::assignTurnLanes(const EdgeID via_edge,
 {
     const auto &data = node_based_graph.GetEdgeData(via_edge);
     const auto turn_lane_string =
-        data.lane_id != INVALID_LANEID ? turn_lane_strings.GetNameForID(data.lane_id) : "";
+        data.lane_string_id != INVALID_LANE_STRINGID ? turn_lane_strings.GetNameForID(data.lane_string_id) : "";
     // FIXME this is a workaround due to https://github.com/cucumber/cucumber-js/issues/417,
     // need to switch statements when fixed
     // const auto num_lanes = std::count(turn_lane_string.begin(), turn_lane_string.end(), '|') + 1;
 
     // going straight, due to traffic signals, we can have uncompressed geometry
     if (intersection.size() == 2 &&
-        (data.lane_id == node_based_graph.GetEdgeData(intersection[1].turn.eid).lane_id ||
+        (data.lane_string_id == node_based_graph.GetEdgeData(intersection[1].turn.eid).lane_string_id ||
          intersection[1].turn.instruction.type == TurnType::Suppressed))
         return intersection;
 
@@ -358,8 +358,8 @@ Intersection TurnLaneMatcher::assignTurnLanes(const EdgeID via_edge,
             return {};
 
         const auto &previous_data = node_based_graph.GetEdgeData(previous_id);
-        auto previous_string = previous_data.lane_id != INVALID_LANEID
-                                   ? turn_lane_strings.GetNameForID(previous_data.lane_id)
+        auto previous_string = previous_data.lane_string_id != INVALID_LANE_STRINGID
+                                   ? turn_lane_strings.GetNameForID(previous_data.lane_string_id)
                                    : "";
 
         if (previous_string.empty())
